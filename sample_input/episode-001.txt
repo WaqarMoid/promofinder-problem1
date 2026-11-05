@@ -1,0 +1,66 @@
+EPISODE NUMBER: Episode 1
+EPISODE LOGLINE: In a bustling public hall, Detective Marcus confronts former partner Evelyn with evidence of a forged will, only to discover she holds the key to his family's past.
+CONTINUITY NOTES: Synthetic public demonstration screenplay for testing the promo discovery pipeline.
+
+--- SCRIPT START ---
+
+SCENE 01
+Scene heading: INT. ARCHIVE HALL - DAY
+Scene start: 00:00.00
+Scene end: 01:15.00
+
+Actions and dialogue:
+
+**CAMERA:**
+Start: (00:00.00) | End: (00:03.00)
+Wide tracking shot through tall marble pillars as Marcus walks briskly toward the central reading desk.
+
+**ACTION:**
+Start: (00:01.00) | End: (00:03.00)
+Marcus slams a leather dossier onto the mahogany table directly before Evelyn.
+
+**MARCUS (Intense, Demanding):**
+Start: (00:02.50) | End: (00:06.00)
+"Explain why your signature is on the forged deed, Evelyn."
+
+**EVELYN (Calm, Defiant):**
+Start: (00:06.50) | End: (00:10.20)
+"Because it was never forged, Marcus. Look at the seal."
+
+**CAMERA:**
+Start: (00:10.20) | End: (00:13.50)
+Close-up on Marcus as his eyes dart across the faded wax crest stamped into the parchment.
+
+**MARCUS (Disbelieving):**
+Start: (00:13.50) | End: (00:17.00)
+"That seal belonged to my father. He died twenty years ago."
+
+**EVELYN (Whispering, Leaning in):**
+Start: (00:17.50) | End: (00:22.00)
+"Then ask yourself who signed it three days before he vanished."
+
+**ACTION:**
+Start: (00:22.00) | End: (00:25.50)
+Marcus recoils in shock, grasping the table edge as the realization hits him.
+
+**SOUND FX:**
+Start: (00:24.00) | End: (00:27.00)
+Deep suspenseful cello swell escalating to a tense pause.
+
+**CAMERA:**
+Start: (00:25.50) | End: (00:28.00)
+Tight push-in on Evelyn's resolute expression.
+
+**EVELYN (Chilling, Direct):**
+Start: (00:28.00) | End: (00:32.00)
+"He didn't drown in the river, Marcus. He was hiding from you."
+
+**SOUND FX:**
+Start: (00:31.00) | End: (00:33.50)
+Dramatic orchestral sting cut abruptly.
+
+**CAMERA:**
+Start: (00:32.00) | End: (00:33.50)
+Cut to black.
+
+--- SCRIPT END ---
