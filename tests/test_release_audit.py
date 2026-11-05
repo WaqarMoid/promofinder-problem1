@@ -30,7 +30,15 @@ class TestReleaseAudit(unittest.TestCase):
             manifest_data = json.load(f)
         total_eps = manifest_data["episode_count"]
         self.assertEqual(total_eps, 50, "Manifest must record exactly 50 episodes.")
-        self.assertEqual(manifest_data["total_events"], 3727)
+        events_file = self.run_dir / "events.jsonl"
+        self.assertTrue(events_file.exists(), "Missing events.jsonl")
+        with open(events_file, "r", encoding="utf-8") as f:
+            actual_event_count = sum(1 for line in f if line.strip())
+        self.assertEqual(
+            manifest_data["total_events"],
+            actual_event_count,
+            "Manifest event count must equal the supplied canonical event stream.",
+        )
 
         # 2. Episode status arithmetic from raw analyses
         raw_dir = self.run_dir / "raw"
@@ -136,6 +144,7 @@ class TestReleaseAudit(unittest.TestCase):
         with open(facts_file, "r", encoding="utf-8") as f:
             facts = json.load(f)
 
+        self.assertEqual(facts["parser_accounting"]["parsed_timed_blocks"], actual_event_count)
         self.assertEqual(facts["coverage_and_yield"]["success_episodes_count"], success_cnt)
         self.assertEqual(facts["coverage_and_yield"]["no_candidate_episodes_count"], no_cand_cnt)
         self.assertEqual(facts["coverage_and_yield"]["processing_coverage_pct"], calc_coverage)
