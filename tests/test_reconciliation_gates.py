@@ -59,7 +59,6 @@ class TestReconciliationGates(unittest.TestCase):
         manual_p = ManualProvider(requests_dir=tmp_req, responses_dir=tmp_resp)
         sample_manifest = getattr(self, "manifests", [None])[0] if self.has_scripts else None
         if not sample_manifest:
-            # Fall back to sample_input if available
             sample_dir = Path("sample_input")
             if sample_dir.exists():
                 s_manifests = parse_all_episodes(sample_dir)
@@ -94,24 +93,35 @@ class TestReconciliationGates(unittest.TestCase):
                 self.assertIsInstance(val.hook_complete_by_ms, int)
                 self.assertIsInstance(val.hook_within_3s, bool)
                 self.assertIsInstance(val.cliff_gap_ms, int)
-                self.assertIsInstance(val.zero_speech_bisection, bool)
-                self.assertIsInstance(val.single_episode_continuous, bool)
-                self.assertIsInstance(val.is_valid, bool)
+                self.assertIsInstance(val.cliff_near_end, bool)
+                self.assertIsInstance(val.boundary_conflicts, int)
+                self.assertIsInstance(val.answer_events_after_cliff, int)
+                self.assertIsInstance(val.segment_count, int)
+                self.assertIsInstance(val.source_events_present, bool)
 
-                # Strict hook completion invariant on valid candidates
+                # Check NO subjective score fields in dict
+                d = val.to_dict()
+                self.assertNotIn("scores", d)
+                self.assertNotIn("score_reasons", d)
+                self.assertNotIn("composite_score", d)
+                self.assertNotIn("hook_strength", d)
+                self.assertNotIn("cliffhanger_strength", d)
+                self.assertNotIn("standalone_clarity", d)
+                self.assertNotIn("pacing", d)
+                self.assertNotIn("human_rating", d)
+                self.assertNotIn("human_approved", d)
+
+                # Check mechanical eligibility formula
                 if val.is_valid:
+                    self.assertTrue(val.duration_valid)
+                    self.assertTrue(val.source_events_present)
+                    self.assertEqual(val.boundary_conflicts, 0)
+                    self.assertTrue(0 <= val.hook_offset_ms <= 3000)
                     self.assertTrue(val.hook_within_3s)
-                    self.assertLessEqual(val.hook_complete_by_ms, 3000)
-                    self.assertGreaterEqual(val.hook_complete_by_ms, 0)
-
-                # Strictly assert zero subjective human-assigned rating or score fields exist
-                cand_dict = val.to_dict()
-                self.assertNotIn("scores", cand_dict)
-                self.assertNotIn("composite_score", cand_dict)
-                self.assertNotIn("human_rating", cand_dict)
-                self.assertNotIn("human_approved", cand_dict)
-                self.assertNotIn("narrative_score", cand_dict)
-                self.assertNotIn("virality_score", cand_dict)
+                    self.assertTrue(0 <= val.hook_complete_by_ms <= 3000)
+                    self.assertTrue(val.cliff_near_end)
+                    self.assertEqual(val.answer_events_after_cliff, 0)
+                    self.assertEqual(len(val.validation_errors), 0)
 
         self.assertGreater(candidates_checked, 0)
 
@@ -148,7 +158,6 @@ class TestReconciliationGates(unittest.TestCase):
             events=[ev_start, ev_hook, ev_cliff, ev_answer]
         )
 
-        # Draft includes ev_answer after cliff: must be rejected
         draft_with_answer = CandidateDraft(
             local_id="C_ANS",
             segments=[SegmentDraft(episode=902, start_event_id="E902-B0001", end_event_id="E902-B0004")],
@@ -165,7 +174,7 @@ class TestReconciliationGates(unittest.TestCase):
         """If a canonical run directory exists, verify zero human rating fields, exact run_facts agreement, 100% coverage, and hook completion <= 3s."""
         run_dir = Path(os.environ.get("PROMOFINDER_CANONICAL_RUN", "runs/canonical"))
         if not run_dir.exists():
-            return  # Canonical run not present in environment
+            return
 
         facts_file = run_dir / "run_facts.json"
         self.assertTrue(facts_file.exists())
@@ -176,7 +185,6 @@ class TestReconciliationGates(unittest.TestCase):
         self.assertEqual(facts["model_execution_disclosure"]["known_paid_api_cost_usd"], 0.00)
         self.assertEqual(facts["model_execution_disclosure"]["external_model_calls"], 0)
 
-        # Verify no subjective scores in top promos and hook completion <= 3000ms
         for p in facts["top_promos"]:
             self.assertNotIn("scores", p)
             self.assertNotIn("composite_score", p)

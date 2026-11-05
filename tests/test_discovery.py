@@ -29,78 +29,60 @@ class TestDiscoveryAndRanking(unittest.TestCase):
         short_draft = CandidateDraft(
             local_id="C_SHORT",
             segments=[SegmentDraft(episode=1, start_event_id="E001-B0001", end_event_id="E001-B0002")],
-            hook={"event_id": "E001-B0001", "description": "Hook"},
-            cliffhanger={"event_id": "E001-B0002", "unresolved_question": "Cliff?"},
-            why_it_works="Test",
+            hook={"event_id": "E001-B0001", "description": "Too short"},
+            cliffhanger={"event_id": "E001-B0002", "unresolved_question": "Why?"},
+            why_it_works="Short test",
             theme="test",
-            standalone_summary="Test",
         )
-        val = validate_candidate_draft(short_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
-        self.assertFalse(val.is_valid)
-        self.assertFalse(val.duration_valid)
-        self.assertIn("DURATION_OUT_OF_BOUNDS", val.validation_errors)
+        validated = validate_candidate_draft(short_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
+        self.assertFalse(validated.is_valid)
+        self.assertTrue(any("below 20.0s" in err for err in validated.validation_errors))
 
     def test_validation_rejects_hook_outside_3_seconds(self):
         m1 = self.manifest_map[1]
-        evs = m1.timeline_events()
-        late_ev = next((e for e in evs if e.start_ms > 3000), evs[-1])
-        cliff_ev = evs[-1]
-
         late_hook_draft = CandidateDraft(
-            local_id="C_LATE_HOOK",
-            segments=[SegmentDraft(episode=1, start_event_id=evs[0].event_id, end_event_id=cliff_ev.event_id)],
-            hook={"event_id": late_ev.event_id, "description": "Late Hook"},
-            cliffhanger={"event_id": cliff_ev.event_id, "unresolved_question": "Cliff?"},
-            why_it_works="Test",
+            local_id="C_LATE",
+            segments=[SegmentDraft(episode=1, start_event_id="E001-B0001", end_event_id="E001-B0025")],
+            hook={"event_id": "E001-B0010", "description": "Late hook"},
+            cliffhanger={"event_id": "E001-B0025", "unresolved_question": "Why?"},
+            why_it_works="Late hook test",
             theme="test",
-            standalone_summary="Test",
         )
-        val = validate_candidate_draft(late_hook_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
-        self.assertFalse(val.is_valid)
-        self.assertFalse(val.hook_within_3s)
-        self.assertIn("HOOK_NOT_WITHIN_3S", val.validation_errors)
+        validated = validate_candidate_draft(late_hook_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
+        self.assertFalse(validated.is_valid)
+        self.assertTrue(any("outside the mandatory 0-3.0s window" in err for err in validated.validation_errors))
 
     def test_validation_rejects_hook_completion_after_3_seconds(self):
         m1 = self.manifest_map[1]
-        evs = m1.timeline_events()
-        # Find an event that starts <= 3000ms but ends > 3000ms
-        late_complete_ev = next((e for e in evs if e.start_ms <= 3000 and e.end_ms > 3000), None)
-        if not late_complete_ev:
-            self.skipTest("No event spanning 3000ms boundary found in Episode 1.")
-        cliff_ev = evs[-1]
-
-        late_complete_draft = CandidateDraft(
-            local_id="C_LATE_HOOK_COMPLETE",
-            segments=[SegmentDraft(episode=1, start_event_id=evs[0].event_id, end_event_id=cliff_ev.event_id)],
-            hook={"event_id": late_complete_ev.event_id, "description": "Hook Completes Late"},
-            cliffhanger={"event_id": cliff_ev.event_id, "unresolved_question": "Cliff?"},
-            why_it_works="Test",
+        # B0001 starts at 0ms and ends at 4800ms (offset 0s, complete at 4.8s > 3.0s)
+        draft = CandidateDraft(
+            local_id="C_LONG_HOOK",
+            segments=[SegmentDraft(episode=1, start_event_id="E001-B0001", end_event_id="E001-B0025")],
+            hook={"event_id": "E001-B0001", "description": "Long hook completing at 4.8s"},
+            cliffhanger={"event_id": "E001-B0025", "unresolved_question": "Why?"},
+            why_it_works="Test hook completion",
             theme="test",
-            standalone_summary="Test",
         )
-        val = validate_candidate_draft(late_complete_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
+        val = validate_candidate_draft(draft, m1, run_id="test", all_manifests_map=self.manifest_map)
         self.assertFalse(val.is_valid)
         self.assertFalse(val.hook_within_3s)
-        self.assertIn("HOOK_COMPLETION_AFTER_3S", val.validation_errors)
+        self.assertEqual(val.hook_offset_ms, 0)
+        self.assertEqual(val.hook_complete_by_ms, 4800)
+        self.assertTrue(any("exceeds the mandatory <=3.00s completion threshold" in err for err in val.validation_errors))
 
     def test_validation_rejects_cliffhanger_outside_footage(self):
         m1 = self.manifest_map[1]
-        evs = m1.timeline_events()
-        early_cliff_ev = evs[2]
-        end_ev = evs[-1]
-
-        early_cliff_draft = CandidateDraft(
-            local_id="C_EARLY_CLIFF",
-            segments=[SegmentDraft(episode=1, start_event_id=evs[0].event_id, end_event_id=end_ev.event_id)],
-            hook={"event_id": evs[0].event_id, "description": "Hook"},
-            cliffhanger={"event_id": early_cliff_ev.event_id, "unresolved_question": "Cliff?"},
-            why_it_works="Test",
+        out_of_bounds_draft = CandidateDraft(
+            local_id="C_OUT",
+            segments=[SegmentDraft(episode=1, start_event_id="E001-B0015", end_event_id="E001-B0030")],
+            hook={"event_id": "E001-B0015", "description": "Hook"},
+            cliffhanger={"event_id": "E001-B0005", "unresolved_question": "Why?"},
+            why_it_works="Out of bounds test",
             theme="test",
-            standalone_summary="Test",
         )
-        val = validate_candidate_draft(early_cliff_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
-        self.assertFalse(val.is_valid)
-        self.assertIn("CLIFFHANGER_TERMINATION_INVALID", val.validation_errors)
+        validated = validate_candidate_draft(out_of_bounds_draft, m1, run_id="test", all_manifests_map=self.manifest_map)
+        self.assertFalse(validated.is_valid)
+        self.assertTrue(any("outside the selected footage" in err for err in validated.validation_errors))
 
     def test_all_episodes_analyzed(self):
         for m in self.manifests:

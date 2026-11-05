@@ -1,63 +1,55 @@
 EPISODE NUMBER: Episode 1
-EPISODE LOGLINE: In a bustling public hall, Detective Marcus confronts former partner Evelyn with evidence of a forged will, only to discover she holds the key to his family's past.
-CONTINUITY NOTES: Synthetic public demonstration screenplay for testing the promo discovery pipeline.
+EPISODE LOGLINE: In a quiet archive hall, Detective Marcus confronts former partner Evelyn with evidence of a forged document, leading to an immediate revelation that his missing father was never dead.
+CONTINUITY NOTES: Public synthetic demonstration screenplay for testing the promo discovery pipeline.
 
 --- SCRIPT START ---
 
 SCENE 01
 Scene heading: INT. ARCHIVE HALL - DAY
 Scene start: 00:00.00
-Scene end: 01:15.00
+Scene end: 00:45.00
 
 Actions and dialogue:
 
-**CAMERA:**
-Start: (00:00.00) | End: (00:03.00)
-Wide tracking shot through tall marble pillars as Marcus walks briskly toward the central reading desk.
+**MARCUS (Urgent, Demanding):**
+Start: (00:00.00) | End: (00:02.50)
+"Explain why your signature is on this forged deed!"
 
 **ACTION:**
-Start: (00:01.00) | End: (00:03.00)
-Marcus slams a leather dossier onto the mahogany table directly before Evelyn.
-
-**MARCUS (Intense, Demanding):**
-Start: (00:02.50) | End: (00:06.00)
-"Explain why your signature is on the forged deed, Evelyn."
+Start: (00:02.50) | End: (00:04.50)
+Marcus slams a leather dossier onto the mahogany desk.
 
 **EVELYN (Calm, Defiant):**
-Start: (00:06.50) | End: (00:10.20)
+Start: (00:04.50) | End: (00:09.00)
 "Because it was never forged, Marcus. Look at the seal."
 
 **CAMERA:**
-Start: (00:10.20) | End: (00:13.50)
-Close-up on Marcus as his eyes dart across the faded wax crest stamped into the parchment.
+Start: (00:09.00) | End: (00:12.00)
+Tight close-up on the cracked wax crest stamped into the parchment.
 
 **MARCUS (Disbelieving):**
-Start: (00:13.50) | End: (00:17.00)
-"That seal belonged to my father. He died twenty years ago."
+Start: (00:12.00) | End: (00:16.50)
+"That crest belonged to my father. He died twenty years ago."
 
-**EVELYN (Whispering, Leaning in):**
-Start: (00:17.50) | End: (00:22.00)
-"Then ask yourself who signed it three days before he vanished."
+**EVELYN (Cold, Steady):**
+Start: (00:16.50) | End: (00:21.00)
+"Then ask yourself why he signed it three days before he vanished."
 
 **ACTION:**
-Start: (00:22.00) | End: (00:25.50)
-Marcus recoils in shock, grasping the table edge as the realization hits him.
+Start: (00:21.00) | End: (00:24.00)
+Marcus recoils in shock, gripping the desk edge as the realization strikes him.
 
 **SOUND FX:**
-Start: (00:24.00) | End: (00:27.00)
-Deep suspenseful cello swell escalating to a tense pause.
+Start: (00:24.00) | End: (00:26.50)
+Low suspenseful drone swelling beneath the silence.
 
 **CAMERA:**
-Start: (00:25.50) | End: (00:28.00)
-Tight push-in on Evelyn's resolute expression.
+Start: (00:26.50) | End: (00:28.00)
+Rapid push-in on Evelyn's resolute expression.
 
 **EVELYN (Chilling, Direct):**
 Start: (00:28.00) | End: (00:32.00)
-"He didn't drown in the river, Marcus. He was hiding from you."
-
-**SOUND FX:**
-Start: (00:31.00) | End: (00:33.50)
-Dramatic orchestral sting cut abruptly.
+"He never died in that fire, Marcus. Who do you think paid me to hide him?"
 
 **CAMERA:**
 Start: (00:32.00) | End: (00:33.50)

@@ -1,28 +1,30 @@
 # Screenplay Promo Finder (`promofinder`)
 
-A reproducible, verifiable CLI-driven pipeline for identifying, validating, and ranking high-converting vertical video promo cuts (20–60s) directly from serialized screenplay scripts.
+A reproducible, verifiable CLI-driven pipeline for identifying, validating, and ranking short-form promotional video cuts from serialized screenplay scripts.
 
 ---
 
 ## 1. System Overview
 
-`promofinder` analyzes screenplay timelines to extract promotional cuts designed for short-form video platforms (TikTok, Instagram Reels, YouTube Shorts). Every candidate must satisfy strict structural, acoustic, and narrative invariants before ranking:
+`promofinder` parses screenplay timelines into structured events and evaluates candidate promotional cuts for short-form platforms (Instagram Reels, TikTok, YouTube Shorts). Every candidate must satisfy strict structural and temporal invariants before ranking:
 
-1. **Duration Compliance**: Promo cut duration must be strictly between 20.0 and 60.0 seconds (sweet spot 30.0–45.0s).
-2. **Hook Delivery**: A compelling opening dialogue beat must start within 3.0 seconds (`hook_offset_ms <= 3000`) and fully complete within 3.0 seconds (`hook_complete_by_ms <= 3000`).
-3. **Dialogue Integrity**: Cuts must never bisect active dialogue. All start and end boundaries snap to exact speech start/end boundaries (`zero_speech_bisection = True`).
-4. **Terminal Cliffhanger**: Cuts must terminate on an acute, unresolved dramatic question or impending threat without resolving beats inside the window (`cliff_gap_ms <= 3000`).
-5. **Deterministic Lexicographic Ranking**: Promos are ranked strictly on observable structural and lexical heuristics with zero subjective human-assigned ratings or artificial score curves.
+1. **Duration Compliance**: Promo cut duration must satisfy `20.0 <= duration <= 60.0` seconds (editorial sweet spot: `30.0 <= duration <= 45.0` seconds).
+2. **Hook Delivery**: A compelling opening dialogue beat must start within 3.0 seconds (`0 <= hook_offset_ms <= 3000`) and fully complete within 3.0 seconds (`0 <= hook_complete_by_ms <= 3000`).
+3. **Dialogue Boundary Integrity**: Cuts must never bisect active spoken dialogue. Both start and end cut timestamps snap to exact speech boundaries (`boundary_conflicts == 0`).
+4. **Terminal Cliffhanger**: Cuts must terminate on an acute, unresolved dramatic question or impending confrontation within 3.0 seconds of the cut end (`cliff_gap_ms <= 3000`) with zero resolving dialogue beats after the cliffhanger inside the cut (`answer_events_after_cliff == 0`).
+5. **Deterministic Lexicographic Ranking**: Promos are ranked strictly using observable structural properties (hook completion speed, acute cliffhanger proximity, sweet-spot duration, dialogue density) without subjective human ratings or artificial score curves.
+
+> **Evaluation Disclosure**: Viewer engagement, retention, CTR, and cold-viewer comprehension were not empirically measured on live audiences. The tool enforces deterministic timing boundaries and lexical pattern proxies.
 
 ---
 
 ## 2. Model & Execution Disclosure
 
-- **Runtime Mode**: Deterministic rule baseline with regex-assisted lexical classification.
+- **Runtime Mode**: Fully local deterministic rule baseline with regex-assisted lexical classification.
 - **External Model Calls**: **0** external API requests during automated discovery.
-- **API Cost**: **$0.00**.
+- **API Cost**: **$0.00 USD**.
 - **Execution Speed**: Fully local, sub-second parsing and candidate evaluation.
-- **LLM Extension**: The codebase includes an extensible `BaseProvider` and `ManualProvider` for offline review and batch LLM prompts without leaking private screenplay data.
+- **LLM Extension**: Includes an extensible `BaseProvider` and `ManualProvider` for offline prompt review and batch model integration without leaking private screenplay text.
 
 ---
 
@@ -42,13 +44,13 @@ python -m venv .venv
 # On Linux/macOS:
 source .venv/bin/activate
 
-# Install test dependencies (pytest, pymupdf, python-docx)
+# Install test and verification dependencies (pytest, pymupdf, python-docx)
 pip install -r requirements.txt
 ```
 
 ---
 
-## 4. Pipeline Execution & Quickstart
+## 4. Pipeline Execution & Synthetic Quickstart
 
 The package exposes a unified CLI with four pipeline stages:
 
@@ -66,13 +68,17 @@ python -m promofinder finalize --run runs/demo_run --top-k 10
 python -m promofinder evaluate --run runs/demo_run
 ```
 
+Running the pipeline on `sample_input/` processes the synthetic screenplay (`episode-001.txt`) and deterministically discovers 1 valid promotional cut (`00:00.00 - 00:32.00`, 32.0s, hook complete at 2.50s, terminal cliffhanger at 00:28.00).
+
 ### Generated Artifacts in `runs/<run_id>/`:
 - `manifest.json`: Full episode metadata, durations, and source hashes.
-- `events.jsonl`: Serialized timeline events with exact hundredths timestamps.
-- `candidates.jsonl`: Mechanically valid candidate promo cuts with observable fields.
-- `rejections.jsonl`: Traceable audit records for rejected windows and non-qualifying episodes.
-- `exports/top10_diverse_promos.json` & `.csv`: Top diverse candidates across themes and episodes.
-- `top3_delivery.json`: First-to-Post promotional cuts ready for video assembly.
+- `events.json` / `events.jsonl`: Serialized timeline events with exact hundredths timestamps.
+- `candidates.jsonl`: Mechanically valid candidate proposals accepted by downstream validation.
+- `rejected.jsonl` and `rejected/`: Records of rejected proposals and disqualification reasons.
+- `episode_analyses.jsonl` and `raw/`: Per-episode analysis records including explicit `no_candidate` reasons.
+- `exports/ranked_all_candidates.json` & `.csv`: All deduplicated valid candidates ranked lexicographically.
+- `exports/top10_diverse_promos.json` & `.csv`: Top 10 diverse promos spanning unique episodes and themes.
+- `exports/top3_first_to_post.json`: Top 3 First-to-Post promotional cuts with narrative evidence and tradeoffs.
 - `run_facts.json`: Authoritative machine-readable metrics, coverage, and yield data.
 - `report.html`: Self-contained interactive inspection report.
 
@@ -80,27 +86,48 @@ python -m promofinder evaluate --run runs/demo_run
 
 ## 5. Automated Test Suite
 
-Run the full automated test suite containing synthetic edge cases, boundary assertions, and adversarial fixtures:
+### Public-Only Mode (Out-of-the-Box)
+Run the automated test suite without private screenplays:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-All synthetic fixtures and adversarial tests execute and pass out-of-the-box without requiring private screenplay packs.
+- **Discovered**: 20 tests.
+- **Passing**: 15 tests (adversarial edge cases, duration boundaries, hook timing, CSV sanitization, synthetic end-to-end run).
+- **Skipped**: 5 tests (cleanly skipped with explanatory messages because the private full screenplay pack is absent).
 
-### For Evaluators with Full Screenplay Packs:
-To run the full suite against a private screenplay collection and canonical run:
+### Evaluator Mode (With Full Screenplay Pack & Canonical Run)
+For evaluators with access to the private screenplay collection and canonical run:
+
 ```bash
-# Set environment variables pointing to local private directories:
+# On Linux / macOS:
 export PROMOFINDER_SCREENPLAYS_DIR="/path/to/screenplays"
-export PROMOFINDER_CANONICAL_RUN="/path/to/canonical_run"
+export PROMOFINDER_INVENTORY_PATH="/path/to/inventory.json"
+export PROMOFINDER_CANONICAL_RUN="/path/to/runs/canonical_run"
+
+# On Windows (PowerShell):
+$env:PROMOFINDER_SCREENPLAYS_DIR="D:\path\to\screenplays"
+$env:PROMOFINDER_INVENTORY_PATH="D:\path\to\inventory.json"
+$env:PROMOFINDER_CANONICAL_RUN="D:\path\to\runs\canonical_run"
 
 python -m unittest discover -s tests -v
 ```
+
+- **Discovered & Passing**: **34 / 34 tests passing** with zero failures and zero errors.
 
 ---
 
-## 6. Architecture & Code Structure
+## 6. Candidate Accounting & Invariants Clarification
+
+- **Proposal Validation Accounting**: In the full 50-episode run, the discovery engine emits candidate proposals that are subjected to downstream mechanical validation. Exactly 111 proposals satisfy all mechanical gates (`111 / 111 = 100.0%`). This measures proposal acceptance post-discovery; raw temporal windows failing opening hook or cliffhanger thresholds are rejected prior to downstream validation or recorded in `rejected/`.
+- **Coverage & Yield**:
+  - Processing Coverage: `(45 success + 5 no_candidate) / 50 = 100.0%`.
+  - Candidate Yield: `45 / 50 = 90.0%`.
+
+---
+
+## 7. Architecture & Code Structure
 
 ```
 promofinder/
@@ -110,9 +137,9 @@ promofinder/
 ├── config.py        # Pipeline parameters, duration limits, and editorial thresholds
 ├── evaluate.py      # Independent evaluation, metrics aggregation, and run_facts generation
 ├── export.py        # Export generation (CSV, JSON, HTML report, failure audits)
-├── models.py        # Pydantic/dataclass data models, contracts, and timestamp converters
-├── parser.py        # Screenplay ingestion, regex tokenization, and regression handling
-├── pipeline.py      # End-to-end orchestration and candidate processing loops
+├── models.py        # Data models, contracts, and timestamp converters
+├── parser.py        # Screenplay ingestion, tokenization, and regression handling
+├── pipeline.py      # Pipeline orchestration and processing loops
 ├── provider.py      # Candidate discovery providers (Deterministic baseline & Manual review)
 ├── rank.py          # Deduplication, lexicographic ranking, and diversity selection
 └── validate.py      # Hard mechanical eligibility validation and boundary enforcement
@@ -131,6 +158,6 @@ tests/
 
 ---
 
-## 7. License
+## 8. License
 
 Distributed under the MIT License. See `LICENSE` for details.

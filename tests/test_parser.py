@@ -3,12 +3,12 @@ Unit tests for screenplay parser and contracts.
 Conforms to acceptance criteria for screenplay ingestion.
 """
 
-import unittest
-import json
 import os
+import json
+import unittest
 from pathlib import Path
 
-from promofinder.parser import parse_all_episodes, parse_screenplay_file
+from promofinder.parser import parse_all_episodes
 from promofinder.models import parse_time_str_to_ms, ms_to_time_str
 
 
@@ -34,53 +34,35 @@ class TestParserAndContracts(unittest.TestCase):
             parse_time_str_to_ms("00:65.00")  # seconds >= 60
 
     def test_all_episodes_accounted_for(self):
-        if not hasattr(self, "manifests") or not self.manifests:
-            self.skipTest("No screenplay manifests available.")
         self.assertEqual(len(self.manifests), len(self.inventory["episodes"]))
+        ep_numbers = [m.episode for m in self.manifests]
+        self.assertEqual(ep_numbers, list(range(1, len(self.inventory["episodes"]) + 1)))
 
     def test_total_event_count_matches_inventory(self):
-        if not hasattr(self, "manifests") or not self.manifests:
-            self.skipTest("No screenplay manifests available.")
-        total_events = sum(len(m.scenes) for m in self.manifests)
-        inv_events = sum(ep["event_count"] for ep in self.inventory["episodes"])
-        self.assertEqual(total_events, inv_events)
+        total_events = sum(len(m.events) for m in self.manifests)
+        self.assertEqual(total_events, self.inventory["total_events"])
 
     def test_total_duration_matches_inventory(self):
-        if not hasattr(self, "manifests") or not self.manifests:
-            self.skipTest("No screenplay manifests available.")
-        total_dur_ms = sum(m.duration_ms for m in self.manifests)
-        inv_dur_ms = sum(ep["duration_ms"] for ep in self.inventory["episodes"])
-        self.assertEqual(total_dur_ms, inv_dur_ms)
+        total_duration_ms = sum(m.duration_ms for m in self.manifests)
+        self.assertEqual(total_duration_ms, self.inventory["total_duration_ms"])
 
     def test_sha256_hashes_match_inventory(self):
-        if not hasattr(self, "manifests") or not self.manifests:
-            self.skipTest("No screenplay manifests available.")
-        for ep in self.inventory["episodes"]:
-            m = next((m for m in self.manifests if m.episode == ep["episode"]), None)
-            self.assertIsNotNone(m, f"Missing manifest for episode {ep['episode']}")
-            self.assertEqual(m.source_hash, ep["sha256"])
+        inv_map = {item["episode"]: item for item in self.inventory["episodes"]}
+        for m in self.manifests:
+            inv = inv_map[m.episode]
+            self.assertEqual(m.sha256, inv["sha256"], f"SHA256 mismatch in ep {m.episode}")
+            self.assertEqual(len(m.events), inv["timed_event_count"], f"Event count mismatch in ep {m.episode}")
+            self.assertEqual(m.duration_ms, inv["duration_ms"], f"Duration mismatch in ep {m.episode}")
 
     def test_events_have_nonblank_text_and_valid_types(self):
-        if not hasattr(self, "manifests") or not self.manifests:
-            self.skipTest("No screenplay manifests available.")
         for m in self.manifests:
-            for ev in m.timeline_events():
+            for ev in m.events:
                 self.assertTrue(ev.text.strip(), f"Blank text in event {ev.event_id}")
                 self.assertIn(ev.kind, ("camera", "action", "dialogue", "sound"))
 
     def test_start_order_regressions_detected(self):
-        if not hasattr(self, "manifests") or not self.manifests:
-            self.skipTest("No screenplay manifests available.")
-        found_regressions = False
-        for m in self.manifests:
-            for s in m.scenes:
-                if len(s.events) > 1:
-                    raw_events = s.events
-                    sorted_events = sorted(raw_events, key=lambda x: (x.start_ms, x.end_ms))
-                    if raw_events != sorted_events:
-                        found_regressions = True
-                        break
-        self.assertTrue(found_regressions or len(self.manifests) > 0)
+        total_regressions = sum(len(m.start_regressions) for m in self.manifests)
+        self.assertGreater(total_regressions, 0)
 
 
 if __name__ == "__main__":

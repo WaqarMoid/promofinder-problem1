@@ -1,6 +1,6 @@
 """
 Synthetic edge case unit tests for parser, validator, and CSV neutralization.
-Conforms strictly to project specifications
+Conforms strictly to evaluation and boundary specifications.
 """
 
 import unittest
@@ -231,6 +231,32 @@ class TestSyntheticEdgeCases(unittest.TestCase):
         self.assertEqual(sanitize_csv_cell("@SUM(A1:A10)"), "'@SUM(A1:A10)")
         self.assertEqual(sanitize_csv_cell("Normal text"), "Normal text")
         self.assertEqual(sanitize_csv_cell(123), 123)
+
+    def test_synthetic_pipeline_end_to_end_yields_valid_candidate(self):
+        """
+        Verifies that running the pipeline on the synthetic sample screenplay
+        yields at least one mechanically valid promo cut (20-60s, hook <= 3s, terminal cliffhanger).
+        """
+        sample_path = Path("sample_input/episode-001.txt")
+        if not sample_path.exists():
+            self.skipTest("sample_input/episode-001.txt not found.")
+
+        manifest = parse_screenplay_file(sample_path)
+        from promofinder.provider import DeterministicBaselineProvider
+        provider = DeterministicBaselineProvider()
+        analysis = provider.generate_analysis(manifest)
+
+        self.assertEqual(analysis.status, "success", f"Expected success but got {analysis.status}: {analysis.reason}")
+        self.assertGreaterEqual(len(analysis.candidates), 1)
+
+        val = validate_candidate_draft(analysis.candidates[0], manifest, "synthetic_test", {manifest.episode: manifest})
+        self.assertTrue(val.is_valid, f"Synthetic candidate validation failed: {val.validation_errors}")
+        self.assertTrue(20.0 <= val.total_duration_sec <= 60.0)
+        self.assertTrue(val.hook_within_3s)
+        self.assertLessEqual(val.hook_complete_by_ms, 3000)
+        self.assertEqual(val.boundary_conflicts, 0)
+        self.assertLessEqual(val.cliff_gap_ms, 3000)
+        self.assertEqual(val.answer_events_after_cliff, 0)
 
 
 if __name__ == "__main__":
