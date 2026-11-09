@@ -90,112 +90,74 @@ def generate_baseline_candidates(manifests: List[EpisodeManifest]) -> List[Valid
     return baseline_candidates
 
 
-def audit_stress_cases(manifest_map: Dict[int, EpisodeManifest], candidates: List[ValidatedCandidate]) -> List[Dict[str, Any]]:
+STRESS_CASES = [
+    # (label, episodes, window_ms or None, what to look at, why it is hard)
+    ("Episode 2 Concluding Defiance", (2,), None,
+     "Testing whether a closing line of emotional defiance is mistaken for a forward cliffhanger.",
+     "A defiant closing line can feel final rather than open. A person should read the end of each Ep 2 candidate."),
+    ("Episode 12 Confrontation & Ultimatum (00:44.00-01:09.20)", (12,), (44000, 69200),
+     "A tense confrontation that ends on a threat.",
+     "Check that the cut ends on the threat and that the threat is clear without earlier context."),
+    ("Episode 16 Attack Defense & Interrogation (00:13.10-00:49.60)", (16,), (13100, 49600),
+     "A fight followed by an interrogation that is cut before the answer.",
+     "Check that the cut stops before the answer and that the opening is clear to a new viewer."),
+    ("Episode 23 Poisoning Discovery (01:19.00-02:04.00)", (23,), (79000, 124000),
+     "A quiet discovery scene that needs close attention to follow.",
+     "Check whether a first-time viewer can follow the poisoning clue from the dialogue alone."),
+    ("Episode 26 Ring Recognition Setup", (26,), None,
+     "A close-up of a ring only matters if the dialogue explains it.",
+     "Visual-only moments may confuse a cold viewer."),
+    ("Episode 45 Marriage Challenge After Reveal", (45,), None,
+     "A reveal followed by a new legal challenge.",
+     "Check that the new crisis, not the reveal, is what the cut ends on."),
+    ("Episodes 49-50 Mature Content & Affair Witnessing", (49, 50), None,
+     "Romantic or sensitive confrontation that may need platform review.",
+     "No automatic content-safety check exists; a person must review these before posting."),
+]
+
+
+def audit_stress_cases(
+    manifest_map: Dict[int, EpisodeManifest],
+    candidates: List[ValidatedCandidate],
+    ranked: Optional[List[ValidatedCandidate]] = None,
+) -> List[Dict[str, Any]]:
     """
-    Audits the specific stress cases required by 04-evaluation.md and FINAL_CORRECTION_HANDOFF.md:
-    - Episode 2: concluding defiance check (resolution vs cliffhanger)
-    - Episode 12: 00:44.00-01:09.20 (blackthorn crawl demand & gallows ultimatum)
-    - Episode 16: 00:13.10-00:49.60 (midnight cottage defense & interrogation ending on 'Who?!')
-    - Episode 23: 01:19.00-02:04.00 (poisoning discovery)
-    - Episode 26: ring recognition setup
-    - Episode 45: cathedral reveal followed by legal marriage challenge
-    - Episodes 49-50: mature-content suitability
+    Stress cases chosen by hand because they are easy to get wrong.
+    Only the counts, ranks and timestamp overlaps below are computed from the run.
+    Whether a case is actually handled well is a judgement for a person to make, so every
+    case is marked as needing human review.
     """
-    stress_reports = []
-
-    # Stress Case 1: Episode 2
-    ep2_cands = [c for c in candidates if c.episode == 2]
-    stress_reports.append({
-        "case": "Episode 2 Concluding Defiance",
-        "description": "Testing whether concluding emotional defiance is mistaken for a forward cliffhanger.",
-        "candidates_found": len(ep2_cands),
-        "audit": (
-            "Protagonist's concluding defiance provides moral resolution rather than forward suspense. "
-            "The discovery engine correctly bypassed this resolved beat in favor of open confrontation cuts."
-        ),
-        "verdict": "Verified: resolution beat excluded from top ranking.",
-    })
-
-    # Stress Case 2: Episode 12 crawl demand & hanging ultimatum
-    ep12_cands = [c for c in candidates if c.episode == 12]
-    stress_reports.append({
-        "case": "Episode 12 High-Tension Confrontation & Gallows Ultimatum (00:44.00–01:09.20)",
-        "description": "High-tension physical/verbal confrontation with thorn ultimatum.",
-        "candidates_found": len(ep12_cands),
-        "audit": (
-            "Opens at 00:44.00 with antagonist confrontation, escalates through ultimatum, "
-            "terminating at 01:09.20 on gallows ultimatum. "
-            "Zero cut bisection; parser timeline sorting successfully resolved textual regressions."
-        ),
-        "verdict": "Verified: top-tier continuous promo candidate.",
-    })
-
-    # Stress Case 3: Episode 16 cottage attack defense
-    ep16_cands = [c for c in candidates if c.episode == 16]
-    stress_reports.append({
-        "case": "Episode 16 Attack Defense & Interrogation (00:13.10–00:49.60)",
-        "description": "Midnight combat action transitioning to conspiracy interrogation.",
-        "candidates_found": len(ep16_cands),
-        "audit": (
-            "Opens at 00:13.10 with defensive order, disarms attackers and demands 'Who?!' at 00:49.60, "
-            "cutting before the confession to leave the conspiracy strictly unresolved. High-tempo physical action promo."
-        ),
-        "verdict": "Verified: primary First-to-Post candidate (Rank #1).",
-    })
-
-    # Stress Case 4: Episode 23 poisoning discovery
-    ep23_cands = [c for c in candidates if c.episode == 23]
-    stress_reports.append({
-        "case": "Episode 23 Poisoning Discovery (01:19.00–02:04.00)",
-        "description": "Auditing standalone clarity of medical poisoning revelation.",
-        "candidates_found": len(ep23_cands),
-        "audit": (
-            "Quiet medical investigation beat transitioning to approaching footstep suspense. "
-            "Dialogue clarifies poisoning, but requires close attention from first-time viewers."
-        ),
-        "verdict": "Audited: secondary candidate; flagged for timing review.",
-    })
-
-    # Stress Case 5: Episode 26 Ring Recognition
-    ep26_cands = [c for c in candidates if c.episode == 26]
-    stress_reports.append({
-        "case": "Episode 26 Ring Recognition Setup",
-        "description": "Visual insert of ducal crest ring requires contextual significance.",
-        "candidates_found": len(ep26_cands),
-        "audit": (
-            "Close-up insert on signet ring has high tension only if dialogue mentions ducal seal. "
-            "Visual-only cuts risk low standalone comprehensibility."
-        ),
-        "verdict": "Flagged: requires verbal anchor or editor footnote.",
-    })
-
-    # Stress Case 6: Episode 45 Marriage Challenge
-    ep45_cands = [c for c in candidates if c.episode == 45]
-    stress_reports.append({
-        "case": "Episode 45 Marriage Challenge After Cathedral Reveal",
-        "description": "Reveal is followed by new legal challenge to marriage validity.",
-        "candidates_found": len(ep45_cands),
-        "audit": (
-            "Demonstrates that dramatic reveals can be valid cliffhangers when followed by an "
-            "immediate new crisis: antagonist challenging the legal validity of the marriage."
-        ),
-        "verdict": "Accepted: valid reveal-to-threat transition.",
-    })
-
-    # Stress Case 7: Episodes 49-50 Content Warnings
-    ep49_50_cands = [c for c in candidates if c.episode in (49, 50)]
-    stress_reports.append({
-        "case": "Episodes 49-50 Mature Content & Affair Witnessing",
-        "description": "Sensory/romantic confrontation risk for social platform compliance.",
-        "candidates_found": len(ep49_50_cands),
-        "audit": (
-            "Depicts illicit betrayal witnessed through window. Flagged with content warning "
-            "'mature_confrontation' for editorial human review rather than automatic deletion."
-        ),
-        "verdict": "Flagged: human editorial discretion required.",
-    })
-
-    return stress_reports
+    rank_by_id = {c.candidate_id: c.rank for c in (ranked or [])}
+    reports: List[Dict[str, Any]] = []
+    for label, eps, window, description, why_hard in STRESS_CASES:
+        in_scope = [c for c in candidates if c.episode in eps]
+        ranks = sorted(rank_by_id[c.candidate_id] for c in in_scope if c.candidate_id in rank_by_id)
+        facts = [f"{len(in_scope)} candidate(s) in the episode(s)"]
+        if ranks:
+            facts.append(f"best overall rank #{ranks[0]} of {len(rank_by_id)}")
+        elif ranked is not None:
+            facts.append("none survived ranking")
+        if window and in_scope:
+            w_start, w_end = window
+            hits = []
+            for c in in_scope:
+                s0, e0 = c.segments[0].start_ms, c.segments[-1].end_ms
+                inter = max(0, min(e0, w_end) - max(s0, w_start))
+                union = (e0 - s0) + (w_end - w_start) - inter
+                if union and inter / union >= 0.5:
+                    hits.append(c.candidate_id)
+            facts.append(
+                f"{len(hits)} candidate(s) overlap the named window by at least half"
+                + (f" ({', '.join(hits)})" if hits else "")
+            )
+        reports.append({
+            "case": label,
+            "description": description,
+            "candidates_found": len(in_scope),
+            "audit": why_hard + " Measured: " + "; ".join(facts) + ".",
+            "verdict": "Needs human review (counts above are computed; quality is not judged by the tool).",
+        })
+    return reports
 
 
 def compute_metrics(
@@ -234,6 +196,22 @@ def compute_metrics(
 
     # Distinct themes
     unique_themes = len(set(c.theme for c in top10_candidates))
+
+    # Computed (not assumed) structural checks over every valid candidate
+    n_valid = len(validated_candidates) or 1
+    cliff_near_end_pct = round(100.0 * sum(1 for c in validated_candidates if c.cliff_near_end) / n_valid, 2)
+    zero_boundary_pct = round(100.0 * sum(1 for c in validated_candidates if c.boundary_conflicts == 0) / n_valid, 2)
+    zero_answer_pct = round(100.0 * sum(1 for c in validated_candidates if c.answer_events_after_cliff == 0) / n_valid, 2)
+
+    # What kind of source event was chosen as the hook / cliffhanger
+    kind_by_id = {e.event_id: e.kind for m in manifests for e in m.events}
+
+    def _kinds(cands, key):
+        counts: Dict[str, int] = {}
+        for c in cands:
+            k = kind_by_id.get(c.hook.get("event_id") if key == "hook" else c.cliffhanger.get("event_id"), "unknown")
+            counts[k] = counts.get(k, 0) + 1
+        return dict(sorted(counts.items()))
 
     # Dynamic coverage computation from discovery_summary.json
     disc_summary_file = run_dir / "discovery_summary.json"
@@ -320,6 +298,13 @@ def compute_metrics(
             "hook_completed_in_3s_pct": round(hook_support_pct, 2),
             "first_3s_unverified_count": len(top10_candidates) - hook_complete_count,
             "distinct_themes_in_top10": unique_themes,
+            "cliff_near_end_pct": cliff_near_end_pct,
+            "zero_boundary_conflicts_pct": zero_boundary_pct,
+            "zero_answer_events_after_cliff_pct": zero_answer_pct,
+            "hook_event_kinds_all_valid": _kinds(validated_candidates, "hook"),
+            "cliff_event_kinds_all_valid": _kinds(validated_candidates, "cliff"),
+            "hook_event_kinds_top10": _kinds(top10_candidates, "hook"),
+            "cliff_event_kinds_top10": _kinds(top10_candidates, "cliff"),
         },
         "effort_and_cost": {
             "total_wall_clock_sec": round(total_wall_clock, 2),
@@ -434,7 +419,12 @@ def run_evaluation(run_dir: Path) -> Dict[str, Any]:
         json.dump([b.to_dict() for b in baseline_candidates], f, indent=2)
 
     # 2. Stress cases audit
-    stress_reports = audit_stress_cases(manifest_map, validated_candidates)
+    ranked_file = run_dir / "exports" / "ranked_all_candidates.json"
+    ranked_candidates = []
+    if ranked_file.exists():
+        with open(ranked_file, "r", encoding="utf-8") as f:
+            ranked_candidates = load_cands(json.load(f))
+    stress_reports = audit_stress_cases(manifest_map, validated_candidates, ranked_candidates)
     with open(eval_dir / "stress_cases.json", "w", encoding="utf-8") as f:
         json.dump(stress_reports, f, indent=2)
 
@@ -525,11 +515,21 @@ def run_evaluation(run_dir: Path) -> Dict[str, Any]:
         "observable_metrics": {
             "hook_completed_in_3s_count": sq["hook_completed_in_3s_count"],
             "hook_completed_in_3s_pct": sq["hook_completed_in_3s_pct"],
-            "cliff_near_end_pct": 100.0,
-            "zero_boundary_conflicts_pct": 100.0,
-            "zero_answer_events_after_cliff_pct": 100.0,
+            "cliff_near_end_pct": sq["cliff_near_end_pct"],
+            "zero_boundary_conflicts_pct": sq["zero_boundary_conflicts_pct"],
+            "zero_answer_events_after_cliff_pct": sq["zero_answer_events_after_cliff_pct"],
             "distinct_themes_in_top10": sq["distinct_themes_in_top10"],
+            "hook_event_kinds_all_valid": sq["hook_event_kinds_all_valid"],
+            "cliff_event_kinds_all_valid": sq["cliff_event_kinds_all_valid"],
+            "hook_event_kinds_top10": sq["hook_event_kinds_top10"],
+            "cliff_event_kinds_top10": sq["cliff_event_kinds_top10"],
         },
+        "interpretation_notes": [
+            "Mechanical validity means the timestamps and boundary rules hold. It does not show that a promo works on viewers.",
+            "Candidates are checked by the same rules that produce them, so 'valid / valid' is expected. The trailing-30s baseline comparison only shows that a naive cut often fails those rules.",
+            "Hook and cliffhanger are picked by keyword and punctuation rules. Standalone clarity for a new viewer is not verified.",
+            "Ranking order follows rule checks, then hook finish time, then cliffhanger gap. It is a hypothesis, not a measure of audience response.",
+        ],
         "top_promos": [c.to_dict() for c in top10_candidates],
         "top_3_first_to_post": top3_data,
         "stress_reports": stress_reports,
@@ -538,7 +538,7 @@ def run_evaluation(run_dir: Path) -> Dict[str, Any]:
                 "id": f"rejection-{run_dir.name}-ep{ep:03d}-no-qualifying-window",
                 "kind": "observed_rejection",
                 "episode": ep,
-                "reason": "NO_QUALIFYING_WINDOW: No 20-60s window meets verified 3s hook, boundary integrity, and unresolved cliffhanger criteria.",
+                "reason": "NO_QUALIFYING_WINDOW: No 20-60s window passes the 3s hook, dialogue-boundary and cliffhanger rules.",
             }
             for ep in sorted(cov["no_candidate_episodes"])
         ] + [
@@ -550,8 +550,8 @@ def run_evaluation(run_dir: Path) -> Dict[str, Any]:
             }
         ],
         "limitations": [
-            "Text-Only CTR Limitation: Screenplay text analysis cannot directly verify actor visual charisma, facial micro-expressions, or audio delivery velocity.",
-            "Physical Video Assembly: Final production publishing requires downstream FFmpeg conform pass to verify subtitle burn-in and keyframe alignment."
+            "Screenplay text cannot show acting, voice, pacing or framing. A person must check the filmed clip.",
+            "Nothing here measures click-through, retention or whether a new viewer understands the clip.",
         ],
     }
 

@@ -1,163 +1,167 @@
-# Screenplay Promo Finder (`promofinder`)
+# PromoFinder
 
-A reproducible, verifiable CLI-driven pipeline for identifying, validating, and ranking short-form promotional video cuts from serialized screenplay scripts.
+A small command-line tool that reads microdrama screenplays and proposes promo clips: 20–60 second cuts that open on a hook, end on an open moment, and keep exact episode timestamps.
 
----
-
-## 1. System Overview
-
-`promofinder` parses screenplay timelines into structured events and evaluates candidate promotional cuts for short-form platforms (Instagram Reels, TikTok, YouTube Shorts). Every candidate must satisfy strict structural and temporal invariants before ranking:
-
-1. **Duration Compliance**: Promo cut duration must satisfy `20.0 <= duration <= 60.0` seconds (editorial sweet spot: `30.0 <= duration <= 45.0` seconds).
-2. **Hook Delivery**: A compelling opening dialogue beat must start within 3.0 seconds (`0 <= hook_offset_ms <= 3000`) and fully complete within 3.0 seconds (`0 <= hook_complete_by_ms <= 3000`).
-3. **Dialogue Boundary Integrity**: Cuts must never bisect active spoken dialogue. Both start and end cut timestamps snap to exact speech boundaries (`boundary_conflicts == 0`).
-4. **Terminal Cliffhanger**: Cuts must terminate on an acute, unresolved dramatic question or impending confrontation within 3.0 seconds of the cut end (`cliff_gap_ms <= 3000`) with zero resolving dialogue beats after the cliffhanger inside the cut (`answer_events_after_cliff == 0`).
-5. **Deterministic Lexicographic Ranking**: Promos are ranked strictly using observable structural properties (hook completion speed, acute cliffhanger proximity, sweet-spot duration, dialogue density) without subjective human ratings or artificial score curves.
-
-> **Evaluation Disclosure**: Viewer engagement, retention, CTR, and cold-viewer comprehension were not empirically measured on live audiences. The tool enforces deterministic timing boundaries and lexical pattern proxies.
+It was built for Problem 1 of the Kuku AI Generalist Assignment. It uses plain Python rules. It does not call any AI model while it runs.
 
 ---
 
-## 2. Model & Execution Disclosure
+## What it does
 
-- **Runtime Mode**: Fully local deterministic rule baseline with regex-assisted lexical classification.
-- **External Model Calls**: **0** external API requests during automated discovery.
-- **API Cost**: **$0.00 USD**.
-- **Execution Speed**: Fully local, sub-second parsing and candidate evaluation.
-- **LLM Extension**: Includes an extensible `BaseProvider` and `ManualProvider` for offline prompt review and batch model integration without leaking private screenplay text.
+For every episode it:
+
+1. **Parses** the screenplay into timed events (dialogue, action, camera, sound).
+2. **Proposes cuts** by sliding a window over the events.
+3. **Checks each cut** against hard rules:
+   - Length is between 20.0 s and 60.0 s.
+   - A hook beat starts and finishes inside the first 3.0 s.
+   - No cut starts or ends in the middle of a spoken line.
+   - The cut ends within 3.0 s of a cliffhanger beat.
+   - No answering line follows the cliffhanger inside the cut.
+4. **Removes near-duplicates** (time overlap of 70% or more on the same episode).
+5. **Ranks** what is left and writes JSON, CSV and an HTML report.
+
+### What the checks mean (and do not mean)
+
+- The hard rules check **timestamps and boundaries**. Passing them does not show that a promo works on viewers.
+- The hook and the cliffhanger are picked with **keyword and punctuation rules**. A hook is usually a spoken line, but it can also be a camera or action direction.
+- "Standalone" clarity is **not verified**. The tool cannot tell if a new viewer will follow the clip.
+- Ranking order comes from simple rules: the rule checks first, then how fast the hook finishes, then how close the cliffhanger is to the end. It is a ranking hypothesis, not a measure of audience response.
+- Click-through, retention and comprehension were not measured.
+- Candidates are checked by the same rules that produce them, so "all candidates pass" is expected and is not a quality score.
 
 ---
 
-## 3. Installation
+## Install
 
-The core `promofinder` package runs entirely on the **Python standard library** (Python 3.10+).
+The tool needs only **Python 3.10 or newer** and the standard library. There is nothing to install.
 
 ```bash
-# Clone the repository
 git clone https://github.com/WaqarMoid/promofinder-problem1.git
 cd promofinder-problem1
-
-# (Optional) Create and activate a virtual environment
-python -m venv .venv
-# On Windows:
-.venv\Scripts\activate
-# On Linux/macOS:
-source .venv/bin/activate
-
-# Install test and verification dependencies (pytest, pymupdf, python-docx)
-pip install -r requirements.txt
 ```
 
 ---
 
-## 4. Pipeline Execution & Synthetic Quickstart
+## Quickstart (synthetic example)
 
-The package exposes a unified CLI with four pipeline stages:
+`sample_input/episode-001.txt` is a short made-up screenplay.
 
 ```bash
-# 1. Ingest screenplay files and serialize timed dialogue/action events
-python -m promofinder ingest --input sample_input --run runs/demo_run
-
-# 2. Discover and mechanically validate candidate cuts across episodes
-python -m promofinder analyze --run runs/demo_run --provider baseline
-
-# 3. Deduplicate overlapping windows, rank lexicographically, and package exports
+python -m promofinder ingest   --input sample_input --run runs/demo_run
+python -m promofinder analyze  --run runs/demo_run --provider baseline
 python -m promofinder finalize --run runs/demo_run --top-k 10
-
-# 4. Perform independent release audit and output canonical run_facts.json
 python -m promofinder evaluate --run runs/demo_run
 ```
 
-Running the pipeline on `sample_input/` processes the synthetic screenplay (`episode-001.txt`) and deterministically discovers 1 valid promotional cut (`00:00.00 - 00:32.00`, 32.0s, hook complete at 2.50s, terminal cliffhanger at 00:28.00).
+This finds one valid promo: `00:00.00 - 00:32.00` (32.0 s). The hook finishes 2.5 s in and the cliffhanger line starts at 00:28.00.
 
-### Generated Artifacts in `runs/<run_id>/`:
-- `manifest.json`: Full episode metadata, durations, and source hashes.
-- `events.json` / `events.jsonl`: Serialized timeline events with exact hundredths timestamps.
-- `candidates.jsonl`: Mechanically valid candidate proposals accepted by downstream validation.
-- `rejected.jsonl` and `rejected/`: Records of rejected proposals and disqualification reasons.
-- `episode_analyses.jsonl` and `raw/`: Per-episode analysis records including explicit `no_candidate` reasons.
-- `exports/ranked_all_candidates.json` & `.csv`: All deduplicated valid candidates ranked lexicographically.
-- `exports/top10_diverse_promos.json` & `.csv`: Top 10 diverse promos spanning unique episodes and themes.
-- `exports/top3_first_to_post.json`: Top 3 First-to-Post promotional cuts with narrative evidence and tradeoffs.
-- `run_facts.json`: Authoritative machine-readable metrics, coverage, and yield data.
-- `report.html`: Self-contained interactive inspection report.
+Open `runs/demo_run/report.html` in a browser to see it.
+
+### Files written to `runs/<name>/`
+
+| File | What it holds |
+|---|---|
+| `manifest.json` | Episode list, durations, source hashes |
+| `events.json`, `events.jsonl` | Every parsed event with exact timestamps |
+| `episode_analyses.jsonl`, `raw/` | Per-episode result, including why an episode had no candidate |
+| `candidates.jsonl` | Every cut that passed the checks |
+| `rejected.jsonl`, `rejected/` | Cuts that failed, with reasons |
+| `ranked_promos.json`, `ranked_promos.csv` | The top 10 (one per episode) |
+| `exports/ranked_all_candidates.json`, `.csv` | All candidates in rank order |
+| `exports/top10_diverse_promos.json`, `.csv` | Top 10 from different episodes |
+| `exports/top3_first_to_post.json` | The three suggested first posts, with evidence |
+| `run_facts.json`, `metrics.json`, `cost.json`, `timings.json` | Counts, timings, cost (zero model calls) |
+| `baseline_candidates.json` | A naive "last 30 seconds" baseline for comparison |
+| `failures.md` | Known ways the tool can pick badly |
+| `report.html` | Self-contained report |
 
 ---
 
-## 5. Automated Test Suite
+## Tests
 
-### Public-Only Mode (Out-of-the-Box)
-Run the automated test suite without private screenplays:
+Public-only (no private data needed):
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-- **Discovered**: 20 tests.
-- **Passing**: 15 tests (adversarial edge cases, duration boundaries, hook timing, CSV sanitization, synthetic end-to-end run).
-- **Skipped**: 5 tests (cleanly skipped with explanatory messages because the private full screenplay pack is absent).
+This discovers 24 tests. 19 pass and 5 skip, because the skipped ones need a full screenplay pack that is not in this repository.
 
-### Evaluator Mode (With Full Screenplay Pack & Canonical Run)
-For evaluators with access to the private screenplay collection and canonical run:
+Full mode, for someone who has the screenplay pack and a finished run:
 
 ```bash
-# On Linux / macOS:
+# Linux / macOS
 export PROMOFINDER_SCREENPLAYS_DIR="/path/to/screenplays"
 export PROMOFINDER_INVENTORY_PATH="/path/to/inventory.json"
-export PROMOFINDER_CANONICAL_RUN="/path/to/runs/canonical_run"
-
-# On Windows (PowerShell):
-$env:PROMOFINDER_SCREENPLAYS_DIR="D:\path\to\screenplays"
-$env:PROMOFINDER_INVENTORY_PATH="D:\path\to\inventory.json"
-$env:PROMOFINDER_CANONICAL_RUN="D:\path\to\runs\canonical_run"
-
+export PROMOFINDER_CANONICAL_RUN="/path/to/runs/run_folder"
 python -m unittest discover -s tests -v
 ```
 
-- **Discovered & Passing**: **34 / 34 tests passing** with zero failures and zero errors.
+```powershell
+# Windows PowerShell
+$env:PROMOFINDER_SCREENPLAYS_DIR="D:\path\to\screenplays"
+$env:PROMOFINDER_INVENTORY_PATH="D:\path\to\inventory.json"
+$env:PROMOFINDER_CANONICAL_RUN="D:\path\to\runs\run_folder"
+python -m unittest discover -s tests -v
+```
+
+In this mode all 38 tests run.
+
+### Independent audit of a run
+
+`tools/audit_run.py` re-checks a finished run without using the `promofinder` package. It recomputes episode and candidate counts, durations, segment order, dialogue-boundary checks, hook and cliffhanger timing, ranking order, and the Top 3 against the source events.
+
+```bash
+python tools/audit_run.py runs/demo_run
+```
+
+It exits with 0 when every check passes.
 
 ---
 
-## 6. Candidate Accounting & Invariants Clarification
+## Using a model instead of rules
 
-- **Proposal Validation Accounting**: In the full 50-episode run, the discovery engine emits candidate proposals that are subjected to downstream mechanical validation. Exactly 111 proposals satisfy all mechanical gates (`111 / 111 = 100.0%`). This measures proposal acceptance post-discovery; raw temporal windows failing opening hook or cliffhanger thresholds are rejected prior to downstream validation or recorded in `rejected/`.
-- **Coverage & Yield**:
-  - Processing Coverage: `(45 success + 5 no_candidate) / 50 = 100.0%`.
-  - Candidate Yield: `45 / 50 = 90.0%`.
+The baseline provider is rule-based. To try a model:
+
+```bash
+python -m promofinder requests --run runs/demo_run --provider manual
+```
+
+This writes one prompt file per episode to `runs/demo_run/requests/`. Send each prompt to any model, save its JSON reply as `runs/demo_run/responses/response_epNNN.json`, then run `analyze --provider manual`. The model only chooses event IDs. The same code then computes the timestamps and applies every check above, so a model cannot return an invalid cut. Calling a hosted API directly is switched off in this prototype.
 
 ---
 
-## 7. Architecture & Code Structure
+## Code layout
 
 ```
 promofinder/
-├── __init__.py      # Package initialization and version
-├── __main__.py      # CLI entry point (`python -m promofinder`)
-├── cli.py           # Command-line interface definition and argument parsing
-├── config.py        # Pipeline parameters, duration limits, and editorial thresholds
-├── evaluate.py      # Independent evaluation, metrics aggregation, and run_facts generation
-├── export.py        # Export generation (CSV, JSON, HTML report, failure audits)
-├── models.py        # Data models, contracts, and timestamp converters
-├── parser.py        # Screenplay ingestion, tokenization, and regression handling
-├── pipeline.py      # Pipeline orchestration and processing loops
-├── provider.py      # Candidate discovery providers (Deterministic baseline & Manual review)
-├── rank.py          # Deduplication, lexicographic ranking, and diversity selection
-└── validate.py      # Hard mechanical eligibility validation and boundary enforcement
-
-sample_input/
-└── episode-001.txt  # Synthetic demonstration screenplay with timed beats
-
-tests/
-├── test_adversarial_fixtures.py     # Predeclared adversarial edge cases
-├── test_synthetic_edge_cases.py     # Boundary timing (19.99s vs 20.00s, 2.99s vs 3.01s, etc.)
-├── test_reconciliation_gates.py     # Cross-file arithmetic and observable field assertions
-├── test_release_audit.py            # Independent release audit of raw run artifacts
-├── test_discovery.py                # Candidate validation contracts
-└── test_parser.py                   # Parser fidelity, timestamp accuracy, and event counts
+  cli.py        command-line commands
+  config.py     limits (20–60 s, 3 s)
+  parser.py     screenplay -> timed events
+  provider.py   cut proposals: rule-based provider, and prompt export/import for a model
+  validate.py   hard checks on every cut
+  rank.py       de-duplication, ranking, top-10 selection, CSV/JSON export
+  evaluate.py   metrics, baseline comparison, run_facts.json
+  export.py     delivery files and failures.md
+  viewer.py     report.html
+  models.py     data classes and timestamp helpers
+  pipeline.py   runs the stages
+tools/audit_run.py   independent audit of a finished run
+sample_input/        a short synthetic screenplay
+tests/               unit tests (synthetic) and full-pack tests (skipped without the pack)
 ```
 
 ---
 
-## 8. License
+## Limits
 
-Distributed under the MIT License. See `LICENSE` for details.
+- Screenplay text cannot show acting, voice, pacing or framing. A person must check the filmed clip.
+- Only single continuous cuts are proposed. Joining moments or episodes is not implemented.
+- Rules are keyword based and were tuned on one show, so they may fit other shows worse.
+- Some hooks and cliffhangers are camera or action directions rather than spoken lines.
+- No content-safety check is made. A person must review sensitive scenes.
+
+## License
+
+MIT. See `LICENSE`.

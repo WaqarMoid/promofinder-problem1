@@ -184,7 +184,7 @@ def export_delivery_pack(run_dir: Path):
     # Generate truthful failures.md documenting observed errors and stress audits
     failures_md = f"""# Failure Mode Analysis & Limitations Report
 
-## 1. Verified Failure Modes & Traceable Rejections
+## 1. Observed Failure Modes & Traceable Rejections
 
 ### Failure Mode 1: Dialogue Mid-Sentence Boundary Bisection (Deterministic Unit Counterexample)
 - **Traceable ID**: `counterexample-unit-boundary-bisection` (Synthetic regression test fixture)

@@ -8,6 +8,7 @@ project specifications
 from __future__ import annotations
 import json
 import re
+from string import capwords
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -174,15 +175,33 @@ class DeterministicBaselineProvider(BaseProvider):
         ("false_accusation", ["theft", "stole", "watch", "guilty", "trial", "judge", "arrest"]),
         ("secret_identity", ["duke", "duchess", "identity", "crest", "signet"]),
         ("power_reversal", ["kneel", "bow", "authority", "order"]),
+        ("poisoning_mystery", ["arsenic", "poison", "poisoned", "poisoning", "antidote"]),
         ("healing_intimacy", ["wound", "herb", "scar", "touch", "husband", "wife", "pain"]),
     ]
 
     def _determine_theme(self, text: str) -> str:
+        """
+        Keyword theme label. Counts whole-word keyword hits per theme and picks the theme
+        with the most hits (ties go to list order). This is a rough label for browsing only;
+        it is not used in ranking.
+        """
         text_lower = text.lower()
+        best_name, best_hits = "dramatic_confrontation", 0
         for theme_name, kw_list in self.THEMES:
-            if any(kw in text_lower for kw in kw_list):
-                return theme_name
-        return "dramatic_confrontation"
+            hits = sum(len(re.findall(r"\b" + re.escape(kw) + r"\b", text_lower)) for kw in kw_list)
+            if hits > best_hits:
+                best_name, best_hits = theme_name, hits
+        return best_name
+
+    @staticmethod
+    def _beat_label(ev: Event, text: str) -> str:
+        """Plain description of a beat: a spoken line (with speaker) or a camera/action direction."""
+        short = text if len(text) <= 70 else text[:67] + "..."
+        if ev.kind == "dialogue" and ev.speaker_name:
+            return f"{capwords(ev.speaker_name)}'s line '{short}'"
+        if ev.kind == "dialogue":
+            return f"the line '{short}'"
+        return f"a {ev.kind} direction ('{short}')"
 
     def _is_hook_candidate(self, ev: Event, cut_start_ms: int) -> Tuple[bool, int, str]:
         """Checks if event lands within 3.0s, completes within 3.0s, and carries dramatic tension without dangling pronouns."""
@@ -394,7 +413,7 @@ class DeterministicBaselineProvider(BaseProvider):
             return EpisodeAnalysis(
                 episode=manifest.episode,
                 status="no_candidate",
-                reason="NO_QUALIFYING_WINDOW: No 20-60s window meets verified 3s hook and unresolved cliffhanger criteria.",
+                reason="NO_QUALIFYING_WINDOW: No 20-60s window passes the 3s hook, dialogue-boundary and cliffhanger rules.",
                 summary=manifest.logline[:80],
                 candidates=[],
                 request_id=f"baseline-ep{manifest.episode:03d}",
@@ -422,20 +441,24 @@ class DeterministicBaselineProvider(BaseProvider):
             elif "and you knew" in clean_cliff.lower() or "how long" in clean_cliff.lower():
                 question = f"How will {speaker_desc} survive the coordinated betrayal after discovering the conspiracy?"
             elif "?" in cliff_ev.text:
-                question = f"How will {speaker_desc} respond when challenged with: '{clean_cliff}'?"
+                question = f"Left open at the cut: '{clean_cliff}' (no answer inside the clip)."
             else:
-                question = f"What will happen to {speaker_desc} following the high-stakes ultimatum: '{clean_cliff}'?"
+                question = f"Left open at the cut: '{clean_cliff}' (no resolution inside the clip)."
 
             hook_quote = hook_ev.text.strip(' \t\n\r"\'“’‘”')
+            window_events = events[s_idx:e_idx + 1]
+            n_spoken = sum(1 for e in window_events if e.kind == "dialogue")
+            hook_done_sec = (hook_ev.end_ms - start_ev.start_ms) / 1000.0
+            # Rule-generated, built only from this candidate's own timestamps and text.
             why_it_works = (
-                f"Opens with an immediate high-stakes confrontation beat at {start_ev.start_str} "
-                f"('{hook_quote}'), sustains direct causal conflict across {dur_sec:.1f}s, "
-                f"and terminates on an acute unresolved crisis at {cliff_ev.start_str} ('{clean_cliff}')."
+                f"Opens on {self._beat_label(hook_ev, hook_quote)} (finishes {hook_done_sec:.1f}s in), "
+                f"runs {dur_sec:.1f}s through {n_spoken} spoken lines, and stops on "
+                f"{self._beat_label(cliff_ev, clean_cliff)} with no reply inside the cut."
             )
+            named = ", ".join(speakers[:3]) if speakers else "no named speaker"
             standalone_summary = (
-                f"Self-contained dramatic conflict featuring {speaker_desc}: "
-                f"{theme.replace('_', ' ').capitalize()} establishing clear narrative stakes for first-time viewers "
-                f"without requiring external backstory."
+                f"Rule check only: {len(speakers)} named speaker(s) ({named}), {n_spoken} spoken lines, "
+                f"keyword theme '{theme}'. Whether a first-time viewer can follow it has not been verified."
             )
 
             candidates_draft.append(

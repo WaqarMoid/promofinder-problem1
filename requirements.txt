@@ -1,6 +1,2 @@
-# Core promofinder runs purely on the Python standard library.
-# The dependencies below are for test execution, document generation, and PDF inspection.
-pytest>=7.0.0
-python-docx>=1.1.0
-pymupdf>=1.23.0
-pywin32>=306; sys_platform == 'win32'
+# promofinder uses only the Python standard library (Python 3.10+).
+# There is nothing to install. Tests run with: python -m unittest discover -s tests -v

@@ -72,7 +72,7 @@ def generate_html_report(
     for c in top_promos:
         segs = "; ".join(f"[{s['start_time_str']}-{s['end_time_str']}]" for s in c['segments'])
         warns = "; ".join(c.get('validation_warnings', []))
-        status_badge = '<span class="status-pill status-warn">Unverified 3s</span>' if "first_3s_unverified" in warns else '<span class="status-pill status-approved">Verified &le;3s</span>'
+        status_badge = '<span class="status-pill status-warn">Hook timing not confirmed</span>' if "first_3s_unverified" in warns else '<span class="status-pill status-approved">Hook within 3s (timestamp check)</span>'
         top10_rows.append(f"""
         <tr>
             <td class="center-text"><strong>#{c.get('rank', '-')}</strong></td>
